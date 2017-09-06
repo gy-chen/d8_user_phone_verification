@@ -1,0 +1,4 @@
+name: User Phone Verification
+type: module
+description: 'Add phone verification field in user registration form.'
+core: 8.x

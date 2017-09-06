@@ -1,0 +1,82 @@
+<?php
+
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\user\UserInterface;
+use Drupal\user_phone_verification\Custom\Util\SMSCodeGenerator;
+use Drupal\user_phone_verification\Entity\UserPhoneVerification;
+
+/**
+ * @return \Drupal\user_phone_verification\Custom\Util\SMSCodeValidator
+ */
+function user_phone_verification_get_sms_validator() {
+  $smscode_validator = \Drupal::service('user_phone_verification.smscode_validator');
+  return $smscode_validator;
+}
+
+/**
+ * @return \Drupal\user_phone_verification\Custom\Util\SMSCodeGenerator
+ */
+function user_phone_verification_get_sms_generator() {
+  $sms_code_generator = new SMSCodeGenerator();
+  return $sms_code_generator;
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function user_phone_verification_form_user_register_form_alter(&$form, FormStateInterface $form_state) {
+  $form['account']['phone'] = [
+    '#type' => 'tel',
+    '#title' => t('Phone'),
+    '#required' => TRUE,
+  ];
+  // add sms code verification field if the sms code is already sent.
+  $smscode_validator = user_phone_verification_get_sms_validator();
+  $smscode = $smscode_validator->getGeneratedCode();
+  if (isset($smscode)) {
+    $form['account']['phone_sms_code'] = [
+      '#type' => 'textfield',
+      '#title' => 'SMS Code',
+      '#description' => 'Input the text that has sent to your phone.',
+      '#required' => TRUE
+    ];
+  }
+  $form['#validate'][] = 'user_phone_verification_validate_register_form';
+}
+
+function user_phone_verification_validate_register_form(&$form, FormStateInterface $form_state) {
+  $smscode_validator = user_phone_verification_get_sms_validator();
+  $generated_sms_code = $smscode_validator->getGeneratedCode();
+  if (isset($generated_sms_code)) {
+    $phone_sms_code = $form_state->getValue('phone_sms_code');
+    if ($phone_sms_code != $generated_sms_code) {
+      $form_state->setErrorByName('phone_sms_code', 'SMS verification code is not correct.');
+    }
+  } else {
+    // TODO check phone number
+    // TODO send verification sms to the phone
+    $sms_code_generator = user_phone_verification_get_sms_generator();
+    $sms_code = $sms_code_generator->generate();
+    $smscode_validator->setGeneratedCode($sms_code);
+    // call setError() method to redirect user back to register form for asking user verification sms code
+    $form_state->setErrorByName('phone', $sms_code);
+    $form_state->setErrorByName('phone', t('A SMS was sent to your phone.'));
+  }
+}
+
+//function user_phone_verification_theme() {
+//  echo '<pre>';
+//  $items = \Drupal::entityTypeManager()->getStorage('user_phone_verification')->loadByProperties(['user' => 86]);
+//  echo $items[1]->id();
+//  die();
+//}
+
+function user_phone_verification_user_insert(UserInterface $user) {
+  $user_phone_verification = UserPhoneVerification::create(
+    [
+      'user' => $user->id(),
+      'is_verified' => TRUE
+    ]
+  );
+  $user_phone_verification->save();
+}

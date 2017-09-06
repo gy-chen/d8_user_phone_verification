@@ -1,0 +1,5 @@
+services:
+
+  user_phone_verification.smscode_validator:
+    class: Drupal\user_phone_verification\Custom\Util\SMSCodeValidator
+    arguments: ['@user.private_tempstore', '@session_manager']
